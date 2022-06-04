@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct SlideBannerView<Content: View>: View {
+public struct SlideBannerView<Content: View>: View {
 
   enum Direction {
     case forward
@@ -22,7 +22,7 @@ struct SlideBannerView<Content: View>: View {
   let totalPage: Int
   var content: () -> Content
 
-  var body: some View {
+  public var body: some View {
     ZStack {
       GeometryReader { proxy in
         VStack(alignment: .leading, spacing: 0) {
@@ -43,7 +43,7 @@ struct SlideBannerView<Content: View>: View {
     }
   }
 
-  init(totalPage: Int, @ViewBuilder content: @escaping () -> Content) {
+  public init(totalPage: Int, @ViewBuilder content: @escaping () -> Content) {
     self.totalPage = totalPage
     self.content = content
   }
