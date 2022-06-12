@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 public struct SlideBannerView<Content: View>: View {
 
@@ -14,11 +15,14 @@ public struct SlideBannerView<Content: View>: View {
     case backward
   }
 
-  @State var halfDown: Bool = false
-  @State var xOffset: CGFloat = 0
-  @State var xWeight: CGFloat = 0
-  @State var currentPage = 0
-  @State var offsets: [CGFloat] = []
+  @State private var halfDown = false
+  @State private var xOffset: CGFloat = 0
+  @State private var xWeight: CGFloat = 0
+  @State private var currentPage = 0
+  @State private var offsets: [CGFloat] = []
+  @State private var autoSlide = true
+  @State private var cancellables = Set<AnyCancellable>()
+  @State private var timer = Timer.publish(every: 1, on: .main, in: .default).autoconnect()
   let totalPage: Int
   var content: () -> Content
 
@@ -41,10 +45,26 @@ public struct SlideBannerView<Content: View>: View {
         Text("\(currentPage)")
       }
     }
+    .onAppear {
+      if autoSlide {
+        timer
+          .sink { _ in
+            currentPage = (currentPage + 1) % totalPage
+            withAnimation {
+              xOffset = offsets[currentPage]
+            }
+            xWeight = xOffset
+          }
+          .store(in: &cancellables)
+      } else {
+        timer.upstream.connect().cancel()
+      }
+    }
   }
 
-  public init(totalPage: Int, @ViewBuilder content: @escaping () -> Content) {
+  public init(totalPage: Int, autoSlide: Bool = true, @ViewBuilder content: @escaping () -> Content) {
     self.totalPage = totalPage
+    self.autoSlide = autoSlide
     self.content = content
   }
 
