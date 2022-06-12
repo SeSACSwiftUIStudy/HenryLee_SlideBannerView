@@ -22,7 +22,7 @@ public struct SlideBannerView<Content: View>: View {
   @State private var offsets: [CGFloat] = []
   @State private var autoSlide = true
   @State private var cancellables = Set<AnyCancellable>()
-  @State private var timer = Timer.publish(every: 1, on: .main, in: .default).autoconnect()
+  @State private var timer = Timer.publish(every: 3, on: .main, in: .default).autoconnect()
   let totalPage: Int
   var content: () -> Content
 
@@ -42,24 +42,27 @@ public struct SlideBannerView<Content: View>: View {
         }
       }
       VStack {
-        Text("\(currentPage)")
+        Spacer()
+        HStack {
+          Spacer()
+          indicator
+            .padding()
+        }
       }
     }
     .onAppear {
-      if autoSlide {
-        timer
-          .sink { _ in
-            currentPage = (currentPage + 1) % totalPage
-            withAnimation {
-              xOffset = offsets[currentPage]
-            }
-            xWeight = xOffset
-          }
-          .store(in: &cancellables)
-      } else {
-        timer.upstream.connect().cancel()
-      }
+      autoSliding()
     }
+  }
+
+  var indicator: some View {
+    Text("\(currentPage + 1) / \(totalPage)")
+      .padding(EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10))
+      .background(
+        Capsule()
+          .foregroundColor(.gray.opacity(0.7))
+          .shadow(radius: 1)
+      )
   }
 
   public init(totalPage: Int, autoSlide: Bool = true, @ViewBuilder content: @escaping () -> Content) {
@@ -114,5 +117,21 @@ public struct SlideBannerView<Content: View>: View {
     let halfDown = abs(endMoved) < unit
     self.halfDown = halfDown
     return halfDown
+  }
+
+  private func autoSliding() {
+    if autoSlide {
+      timer
+        .sink { _ in
+          currentPage = (currentPage + 1) % totalPage
+          withAnimation {
+            xOffset = offsets[currentPage]
+          }
+          xWeight = xOffset
+        }
+        .store(in: &cancellables)
+    } else {
+      timer.upstream.connect().cancel()
+    }
   }
 }
