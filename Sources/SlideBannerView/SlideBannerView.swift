@@ -18,27 +18,27 @@ public struct SlideBannerView<Content: View>: View {
   @State private var halfDown = false
   @State private var xOffset: CGFloat = 0
   @State private var xWeight: CGFloat = 0
-  @State private var currentPage = 0
   @State private var offsets: [CGFloat] = []
+  @State private var totalPage: Int
   @State private var autoSlide = true
+  @State private var indicatorText = ""
+  @State private var showIndicator = true
+  @State private var currentIndex = 0
+  @Binding var selectedIndex: Int
   @State private var cancellables = Set<AnyCancellable>()
-  @State private var timer = Timer.publish(every: 3, on: .main, in: .default).autoconnect()
-  let totalPage: Int
   var content: () -> Content
 
   public var body: some View {
     ZStack {
       GeometryReader { proxy in
-        VStack(alignment: .leading, spacing: 0) {
-          HStack(spacing: 0) {
-            content()
-              .frame(width: proxy.size.width)
-          }
-          .offset(x: xOffset)
-          .gesture(drag(geometry: proxy))
+        HStack(spacing: 0) {
+          content()
+            .frame(width: proxy.size.width)
         }
+        .offset(x: xOffset)
+        .gesture(drag(geometry: proxy))
         .onAppear {
-          offsets = (0..<totalPage).map { -(CGFloat($0) * proxy.size.width)}
+          offsets = (0..<totalPage).map { -(CGFloat($0) * proxy.size.width) }
         }
       }
       VStack {
@@ -51,24 +51,58 @@ public struct SlideBannerView<Content: View>: View {
       }
     }
     .onAppear {
-      autoSliding()
+      if autoSlide {
+        Timer
+          .publish(every: 3, on: .main, in: .default)
+          .sink { _ in
+            pageUpdate(nextIndex: currentIndex + 1)
+
+          }
+          .store(in: &cancellables)
+      }
+    }
+    .onAppear {
+      pageUpdate(nextIndex: selectedIndex, animating: false)
+    }
+    .onChange(of: selectedIndex) { newValue in
+      pageUpdate(nextIndex: newValue)
+    }
+    .onChange(of: currentIndex) { newValue in
+      _selectedIndex.wrappedValue = newValue
+    }
+
+  }
+
+  private func pageUpdate(nextIndex: Int, animating: Bool = true) {
+    currentIndex = nextIndex % totalPage
+    
+    withAnimation(.easeInOut(duration: animating ? 0.3 : 0)) {
+      xOffset = offsets[currentIndex]
+    }
+    xWeight = xOffset
+  }
+
+  @ViewBuilder
+  var indicator: some View {
+    if showIndicator {
+      Text("\(currentIndex + 1) / \(totalPage)")
+        .padding(EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10))
+        .background(
+          Capsule()
+            .foregroundColor(.gray.opacity(0.7))
+            .shadow(radius: 1)
+        )
+    } else {
+      EmptyView()
     }
   }
 
-  var indicator: some View {
-    Text("\(currentPage + 1) / \(totalPage)")
-      .padding(EdgeInsets(top: 6, leading: 10, bottom: 6, trailing: 10))
-      .background(
-        Capsule()
-          .foregroundColor(.gray.opacity(0.7))
-          .shadow(radius: 1)
-      )
-  }
-
-  public init(totalPage: Int, autoSlide: Bool = true, @ViewBuilder content: @escaping () -> Content) {
+  public init(totalPage: Int, autoSlide: Bool = false, selectedIndex: Binding<Int>, showIndicator: Bool = true, @ViewBuilder content: @escaping () -> Content) {
     self.totalPage = totalPage
     self.autoSlide = autoSlide
+    self.showIndicator = showIndicator
     self.content = content
+    self._selectedIndex = selectedIndex
   }
 
   private func drag(geometry: GeometryProxy) -> some Gesture {
@@ -82,16 +116,12 @@ public struct SlideBannerView<Content: View>: View {
         let direction = dragDirection(endMoved: moved.translation.width)
         let nextPage = getNextPage(halfDown: halfDown, direction: direction)
 
-        currentPage = nextPage
-        withAnimation {
-          xOffset = offsets[nextPage]
-        }
-        xWeight = xOffset
+        pageUpdate(nextIndex: nextPage)
       })
   }
 
   private func getNextPage(halfDown: Bool, direction: Direction) -> Int {
-    var nextPage = halfDown ? currentPage : direction == .forward ? currentPage + 1 : currentPage - 1
+    var nextPage = halfDown ? currentIndex : direction == .forward ? currentIndex + 1 : currentIndex - 1
 
     nextPage = nextPage >= totalPage ? nextPage - 1 : nextPage
     nextPage = nextPage < 0 ? 0 : nextPage
@@ -117,21 +147,5 @@ public struct SlideBannerView<Content: View>: View {
     let halfDown = abs(endMoved) < unit
     self.halfDown = halfDown
     return halfDown
-  }
-
-  private func autoSliding() {
-    if autoSlide {
-      timer
-        .sink { _ in
-          currentPage = (currentPage + 1) % totalPage
-          withAnimation {
-            xOffset = offsets[currentPage]
-          }
-          xWeight = xOffset
-        }
-        .store(in: &cancellables)
-    } else {
-      timer.upstream.connect().cancel()
-    }
   }
 }
